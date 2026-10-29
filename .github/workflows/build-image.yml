@@ -5,6 +5,9 @@ on:
     branches: [main]
     paths-ignore:
       - "**.md"
+  pull_request:
+    paths-ignore:
+      - "**.md"
   workflow_dispatch:
 
 permissions:
@@ -58,12 +61,15 @@ jobs:
         run: just secureboot
 
       - name: Login to GHCR
+        if: github.event_name != 'pull_request'
         run: echo "${{ github.token }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
       - name: Push
+        if: github.event_name != 'pull_request'
         run: just push
 
       - name: Sign image
+        if: github.event_name != 'pull_request'
         env:
           COSIGN_PRIVATE_KEY: ${{ secrets.SIGNING_SECRET }}
         run: |

@@ -24,7 +24,7 @@ env:
 jobs:
   build:
     name: Build disk/ISO (stadio B)
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event != 'pull_request') }}
     runs-on: blacksmith-8vcpu-ubuntu-2404
     strategy:
       fail-fast: false
