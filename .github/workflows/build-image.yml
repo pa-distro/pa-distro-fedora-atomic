@@ -32,9 +32,6 @@ jobs:
       - name: Checkout
         uses: useblacksmith/checkout@v1
 
-      - name: Install cosign
-        uses: sigstore/cosign-installer@v3
-
       - name: Setup just
         uses: extractions/setup-just@v2
 
@@ -60,16 +57,47 @@ jobs:
       - name: Secure Boot check (best effort)
         run: just secureboot
 
+  # Job separato: se il push fallisce (es. 429 da ghcr.io) il job di build resta
+  # verde e la cache dei layer (sticky disk) viene salvata comunque. Qui la build
+  # riparte da quella cache, quindi non ricompila.
+  push:
+    name: Push image (stadio A)
+    needs: build
+    if: github.event_name != 'pull_request'
+    runs-on: blacksmith-8vcpu-ubuntu-2404
+    steps:
+      - name: Checkout
+        uses: useblacksmith/checkout@v1
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Setup just
+        uses: extractions/setup-just@v2
+
+      # La base kinoite ha ~257 layer: lo store classico overlay2 si ferma a 125
+      # ("max depth exceeded" al --load). Lo store containerd non ha questo limite.
+      - name: Enable containerd image store
+        run: |
+          sudo mkdir -p /etc/docker
+          if sudo test -s /etc/docker/daemon.json; then cfg=$(sudo cat /etc/docker/daemon.json); else cfg='{}'; fi
+          echo "$cfg" | jq '.features["containerd-snapshotter"] = true' | sudo tee /etc/docker/daemon.json
+          sudo systemctl restart docker
+          docker info -f '{{ .DriverStatus }}'
+
+      - name: Setup Blacksmith Builder
+        uses: useblacksmith/setup-docker-builder@v1
+
+      - name: Build (from cache)
+        run: just build
+
       - name: Login to GHCR
-        if: github.event_name != 'pull_request'
         run: echo "${{ github.token }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
       - name: Push
-        if: github.event_name != 'pull_request'
         run: just push
 
       - name: Sign image
-        if: github.event_name != 'pull_request'
         env:
           COSIGN_PRIVATE_KEY: ${{ secrets.SIGNING_SECRET }}
         run: |

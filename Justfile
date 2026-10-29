@@ -132,7 +132,16 @@ push:
       echo "REGISTRY non impostato (es. REGISTRY=ghcr.io/tuo-utente just push)"; exit 1
     fi
     docker tag "{{local_image}}" "{{registry}}/{{image_name}}:{{image_tag}}"
-    docker push "{{registry}}/{{image_name}}:{{image_tag}}"
+    # ~260 layer: ghcr.io può rispondere 429. I blob già caricati vengono saltati,
+    # quindi ritentare riprende da dove si era fermato.
+    for i in 1 2 3 4 5; do
+      docker push "{{registry}}/{{image_name}}:{{image_tag}}" && exit 0
+      [ "$i" -eq 5 ] && break
+      echo "push fallito (tentativo $i/5), riprovo tra $((i * 30))s" >&2
+      sleep $((i * 30))
+    done
+    echo "push fallito dopo 5 tentativi" >&2
+    exit 1
 
 # Verifica firma del kernel (best effort: richiede sbsigntools)
 secureboot:
