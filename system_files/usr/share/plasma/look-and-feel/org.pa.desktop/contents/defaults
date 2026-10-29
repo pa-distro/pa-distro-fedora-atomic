@@ -1,0 +1,34 @@
+# Default PA Desktop, applicati dalla Look-and-Feel (primo login / "Applica").
+# Nota: i default di sistema veri stanno anche in
+#   /usr/share/kde-settings/kde-profile/default/xdg (patchati a build time).
+# Tenere i due livelli coerenti: stesse chiavi, stessi valori.
+
+[kdeglobals][KDE]
+widgetStyle=Breeze
+
+[kdeglobals][General]
+ColorScheme=PADark
+Name=PADark
+AccentColor=46,204,113
+accentColorFromWallpaper=false
+
+[kdeglobals][Icons]
+Theme=Flat-Remix-Green-Dark
+
+[kcminputrc][Mouse]
+cursorTheme=breeze_cursors
+
+[kwinrc][org.kde.kdecoration2]
+library=org.kde.kwin.aurorae
+theme=__aurorae__svg__Sweet-Mars
+
+[plasmarc][Theme]
+name=default
+
+[Wallpaper]
+Image=PA
+Plugin=org.kde.image
+
+[Desktop][org.kde.plasma.desktop]
+Containment=org.kde.plasma.folder
+Image=PA

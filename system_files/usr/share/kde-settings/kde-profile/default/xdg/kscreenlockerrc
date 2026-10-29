@@ -1,0 +1,12 @@
+[Daemon]
+Autolock=true
+LockGrace=0
+LockOnResume=true
+Timeout=5
+
+[Greeter]
+WallpaperPlugin=org.kde.image
+
+[Greeter][Wallpaper][org.kde.image][General]
+Image=file:///usr/share/wallpapers/PA/contents/images/3840x2160.png
+PreviewImage=file:///usr/share/wallpapers/PA/contents/images/3840x2160.png

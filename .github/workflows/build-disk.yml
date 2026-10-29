@@ -1,0 +1,54 @@
+name: build-disk
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["build-image"]
+    types: [completed]
+
+permissions:
+  contents: read
+  packages: read
+  id-token: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref || github.run_id }}
+  cancel-in-progress: true
+
+env:
+  IMAGE_NAME: pa-desktop-aurora
+  IMAGE_TAG: latest
+  REGISTRY: ghcr.io/${{ github.repository_owner }}
+  BIB_IMAGE: quay.io/centos-bootc/bootc-image-builder:latest
+
+jobs:
+  build:
+    name: Build disk/ISO (stadio B)
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        disk-type: ["qcow2", "anaconda-iso"]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build disk image
+        id: build
+        uses: osbuild/bootc-image-builder-action@main
+        with:
+          builder-image: ${{ env.BIB_IMAGE }}
+          config-file: ${{ matrix.disk-type == 'anaconda-iso' && './disk_config/iso.toml' || './disk_config/disk.toml' }}
+          image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+          chown: "1000:1000"
+          types: ${{ matrix.disk-type }}
+          additional-args: --use-librepo=True
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.IMAGE_NAME }}-${{ matrix.disk-type }}
+          path: ${{ steps.build.outputs.output-directory }}
+          if-no-files-found: error
+          retention-days: 7

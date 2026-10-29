@@ -1,0 +1,46 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Source: https://gitlab.com/parrotsec/packages/echo-themes
+Upstream-Name: echo-themes
+Upstream-Contact: Dario "danterolle" Camonita <danterolle@parrotsec.org>
+
+Files:
+ assets/themes/Sweet/*
+Copyright:
+ 2025 Eliver Lara
+License: GPL-3.0
+
+Files:
+ assets/icons/flat-remix/*
+Copyright:
+ 2025 Daniel Ruiz de Alegría (https://drasite.com)
+License: GPL-3.0
+
+Files:
+ debian/*
+ assets/backgrounds/*
+ assets/colors/*
+ assets/desktop-base/*
+ assets/EchoWallpaper/*
+ assets/sddm-theme/*
+ assets/xfce-theme/*
+ echo-theme/*
+Copyright:
+ 2025 Parrot Dev Team <team@parrotsec.org>
+License: GPL-3.0+
+
+License: GPL-3.0+
+ This program is free software: you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation, either version 3 of the License, or
+ (at your option) any later version.
+ .
+ This package is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
+ .
+ You should have received a copy of the GNU General Public License
+ along with this program. If not, see <https://www.gnu.org/licenses/>.
+Comment:
+ On Debian systems, the complete text of the GNU General
+ Public License version 3 can be found in "/usr/share/common-licenses/GPL-3".

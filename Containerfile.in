@@ -1,0 +1,57 @@
+# syntax=docker/dockerfile:1
+#
+# PA Desktop — variante "stile Aurora" (Containerfile + build_scripts + Justfile)
+# Base: Fedora Kinoite OSTree ufficiale. Slim: niente common/brew/akmods di Aurora.
+#
+ARG BASE_IMAGE_ORG="quay.io/fedora-ostree-desktops"
+ARG BASE_IMAGE_NAME="kinoite"
+ARG BASE_IMAGE="${BASE_IMAGE_ORG}/${BASE_IMAGE_NAME}"
+ARG FEDORA_MAJOR_VERSION="44"
+
+# ---------------------------------------------------------------------------
+# ctx: script e file di build. Non finiscono nell'immagine finale.
+# ---------------------------------------------------------------------------
+FROM scratch AS ctx
+COPY build_scripts /build_scripts
+COPY system_files /system_files
+
+# ---------------------------------------------------------------------------
+# Immagine
+# ---------------------------------------------------------------------------
+FROM ${BASE_IMAGE}:${FEDORA_MAJOR_VERSION} AS base
+
+ARG IMAGE_NAME="pa-desktop-aurora"
+ARG IMAGE_VENDOR="local"
+ARG SHA_HEAD_SHORT="deadbeef"
+ARG VERSION="dev"
+
+LABEL org.opencontainers.image.title="${IMAGE_NAME}" \
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.revision="${SHA_HEAD_SHORT}" \
+      org.opencontainers.image.vendor="${IMAGE_VENDOR}" \
+      org.opencontainers.image.source="https://github.com/OWNER/pa-distro-aurora" \
+      containers.bootc="1"
+
+ENV PATH="/ctx/build_scripts/helpers:${PATH}"
+
+# 1) Pacchetti (rete) + kernel dalla base (nessun akmods)
+RUN --mount=type=bind,from=ctx,source=/build_scripts,target=/ctx/build_scripts \
+    --mount=type=cache,dst=/var/cache/libdnf5 \
+    /ctx/build_scripts/shared/build-prep.sh && \
+    /ctx/build_scripts/base/01-packages.sh && \
+    /ctx/build_scripts/base/02-kernel-akmods.sh
+
+# 2) File, servizi, cleanup (offline)
+RUN --network=none \
+    --mount=type=bind,from=ctx,source=/build_scripts,target=/ctx/build_scripts \
+    --mount=type=bind,from=ctx,source=/system_files,target=/ctx/system_files \
+    /ctx/build_scripts/base/03-files.sh && \
+    /ctx/build_scripts/base/04-services.sh && \
+    /ctx/build_scripts/base/05-theme.sh && \
+    /ctx/build_scripts/shared/clean-stage.sh && \
+    /ctx/build_scripts/base/99-finalize.sh
+
+CMD ["/sbin/init"]
+
+# 3) Validazione finale: rende l'immagine una bootc image valida
+RUN --network=none bootc container lint --fatal-warnings --no-truncate

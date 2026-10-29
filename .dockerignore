@@ -1,0 +1,12 @@
+# Contesto di build Docker: servono solo Containerfile.in, build_scripts/ e system_files/.
+# Evita di spedire al daemon output/, asset e storia git (output/ può contenere qcow2 da GB).
+.git
+.github
+output
+assets
+LICENSES
+*.md
+.build.lock
+cosign.key
+cosign.pub.example
+disk_config

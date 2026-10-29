@@ -1,0 +1,14 @@
+[Desktop Entry]
+DefaultProfile=PA.profile
+
+[General]
+ConfigVersion=1
+
+[KonsoleWindow]
+RememberWindowSize=false
+ShowMenuBarByDefault=true
+
+[MainWindow]
+MenuBar=Enabled
+RestorePositionForNextInstance=true
+StatusBar=Disabled

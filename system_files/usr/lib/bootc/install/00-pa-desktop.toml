@@ -1,0 +1,8 @@
+# Default root filesystem per l'immagine bootc.
+#
+# Fedora (e quindi Fedora Kinoite / bluebuild base-images) NON dichiara un
+# filesystem di root predefinito. Senza questo file bootc-image-builder fallisce con:
+#   failed to initialize bootc distro: missing required info: DefaultRootFs
+# Fedora Atomic usa btrfs di default, quindi lo dichiariamo qui.
+[install.filesystem.root]
+type = "btrfs"

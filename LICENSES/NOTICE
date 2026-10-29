@@ -1,0 +1,26 @@
+PA Desktop — notice sulle licenze
+================================
+
+Il codice e i file di configurazione di questo repository sono distribuiti con
+licenza GPL-3.0-or-later (vedi LICENSES/GPL-3.0-or-later.txt), salvo dove diversamente indicato.
+
+Asset di terze parti inclusi nell'immagine:
+
+- Sweet Mars (decorazioni finestra KWin/Aurorae)
+  © 2025 Eliver Lara — GPL-3.0
+  https://github.com/EliverLara/Sweet
+  Importato da parrotsec/packages/echo-themes (GPL-3.0+), commit 6a26143b75e8410b92ecc404fbb92c93b7fff737.
+
+- Flat Remix (tema icone, variante Green Dark)
+  © 2025 Daniel Ruiz de Alegría — GPL-3.0
+  https://github.com/daniruiz/flat-remix
+  Commit e7de6c346da46e008987228f363b0eae6e638637.
+
+- Fedora KDE settings (file di default in /usr/share/kde-settings, patchati a build time)
+  © Fedora Project — GPL-2.0-or-later / MIT secondo il pacchetto kde-settings.
+
+Asset originali PA Desktop (logo, wallpaper, palette PADark):
+  © PA Desktop — CC-BY-SA-4.0.
+
+Non sono inclusi marchi, loghi o wallpaper di ParrotOS: il tema è ispirato al
+"racing" Parrot 7 Echo (palette e disposizione), ma con identità PA.

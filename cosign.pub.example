@@ -1,0 +1,5 @@
+# Sostituisci con la tua chiave pubblica cosign (cosign generate-key-pair).
+# Questo file è un segnaposto: NON è una chiave valida.
+-----BEGIN PUBLIC KEY-----
+INSERISCI-QUI-LA-TUA-CHIAVE-PUBBLICA-COSIGN
+-----END PUBLIC KEY-----

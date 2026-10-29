@@ -1,0 +1,15 @@
+{
+    "KPackageStructure": "Plasma/Wallpaper",
+    "KPlugin": {
+        "Id": "PA",
+        "Name": "PA Desktop",
+        "Description": "Wallpaper PA Desktop",
+        "License": "CC-BY-SA-4.0",
+        "Version": "1.0",
+        "Authors": [
+            {
+                "Name": "PA Desktop"
+            }
+        ]
+    }
+}

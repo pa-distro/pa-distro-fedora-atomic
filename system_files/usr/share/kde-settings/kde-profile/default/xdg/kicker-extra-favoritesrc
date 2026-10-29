@@ -1,0 +1,6 @@
+[General]
+# Preferiti PA (Kickoff/Kicker/Dashboard), solo per utenti nuovi.
+# Meccanismo KDE 6.2+: https://develop.kde.org/docs/administration/menu/
+IgnoreDefaults=true
+Prepend=org.mozilla.firefox.desktop;net.thunderbird.Thunderbird.desktop;libreoffice-writer.desktop;libreoffice-calc.desktop;libreoffice-impress.desktop;org.kde.okular.desktop;org.kde.dolphin.desktop;org.gnome.SimpleScan.desktop
+Append=

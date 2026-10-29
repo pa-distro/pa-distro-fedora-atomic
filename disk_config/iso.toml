@@ -1,0 +1,17 @@
+# iso.toml — ISO installer (Anaconda)
+[customizations.timezone]
+timezone = "Europe/Rome"
+
+[customizations.locale]
+languages = ["it_IT.UTF-8"]
+keyboard = "it"
+
+[customizations.installer.kickstart]
+contents = "graphical"
+
+[[customizations.user]]
+name = "pa"
+description = "Amministratore PA"
+password = "pa"                 # ⚠️ cambia
+shell = "/bin/zsh"
+groups = ["wheel"]

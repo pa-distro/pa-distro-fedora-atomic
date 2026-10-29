@@ -1,0 +1,18 @@
+{
+    "KPackageStructure": "Plasma/LookAndFeel",
+    "KPlugin": {
+        "Id": "org.pa.desktop",
+        "Name": "PA Desktop",
+        "Description": "Identità PA Desktop: palette verde su Breeze Dark, icone Flat Remix, decorazioni Sweet Mars",
+        "Icon": "preferences-desktop-theme-global",
+        "License": "GPL-3.0-or-later",
+        "Version": "1.0",
+        "Authors": [
+            {
+                "Name": "PA Desktop"
+            }
+        ]
+    },
+    "X-Plasma-MainScript": "defaults",
+    "X-Plasma-RootContainmentLayout": "org.kde.plasma.desktop-layout.js"
+}

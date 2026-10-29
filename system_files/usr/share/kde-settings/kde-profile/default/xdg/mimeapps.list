@@ -1,0 +1,11 @@
+[Default Applications]
+text/html=org.mozilla.firefox.desktop
+x-scheme-handler/http=org.mozilla.firefox.desktop
+x-scheme-handler/https=org.mozilla.firefox.desktop
+message/rfc822=net.thunderbird.Thunderbird.desktop
+x-scheme-handler/mailto=net.thunderbird.Thunderbird.desktop
+application/pdf=org.kde.okular.desktop
+inode/directory=org.kde.dolphin.desktop
+image/jpeg=org.kde.gwenview.desktop
+image/png=org.kde.gwenview.desktop
+application/zip=org.kde.ark.desktop
