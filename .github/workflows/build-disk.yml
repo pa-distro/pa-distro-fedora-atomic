@@ -25,11 +25,18 @@ jobs:
   build:
     name: Build disk/ISO (stadio B)
     if: ${{ github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event != 'pull_request') }}
-    runs-on: blacksmith-8vcpu-ubuntu-2404
+    runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
-        disk-type: ["qcow2", "anaconda-iso"]
+        include:
+          # Il qcow2 va costruito su un runner GitHub: osbuild monta le partizioni
+          # GPT del disco via loop device e la root btrfs, ma il kernel dei runner
+          # Blacksmith non ha CONFIG_EFI_PARTITION né btrfs.
+          - disk-type: qcow2
+            runner: ubuntu-24.04
+          - disk-type: anaconda-iso
+            runner: blacksmith-8vcpu-ubuntu-2404
     steps:
       - name: Checkout
         uses: useblacksmith/checkout@v1
@@ -48,9 +55,6 @@ jobs:
           image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
           chown: "1000:1000"
           types: ${{ matrix.disk-type }}
-          # Il kernel del runner non ha btrfs (default di Kinoite): osbuild non può
-          # montare la root del qcow2. La ISO partiziona all'installazione, resta btrfs.
-          rootfs: ${{ matrix.disk-type == 'qcow2' && 'ext4' || '' }}
           additional-args: --use-librepo=True
 
       - name: Upload artifact
