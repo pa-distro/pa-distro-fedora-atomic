@@ -41,6 +41,14 @@ jobs:
       - name: Checkout
         uses: useblacksmith/checkout@v1
 
+      # Il runner GitHub ha ~14GB liberi: non bastano per pull dell'immagine + disco.
+      - name: Free disk space
+        if: ${{ startsWith(matrix.runner, 'ubuntu-') }}
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache /usr/local/share/boost /usr/share/swift
+          sudo docker image prune --all --force || true
+          df -h /
+
       # L'immagine su ghcr.io è privata: l'action fa "sudo podman pull", quindi
       # il login va fatto con podman come root.
       - name: Login to GHCR
