@@ -48,6 +48,9 @@ jobs:
           image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
           chown: "1000:1000"
           types: ${{ matrix.disk-type }}
+          # Il kernel del runner non ha btrfs (default di Kinoite): osbuild non può
+          # montare la root del qcow2. La ISO partiziona all'installazione, resta btrfs.
+          rootfs: ${{ matrix.disk-type == 'qcow2' && 'ext4' || '' }}
           additional-args: --use-librepo=True
 
       - name: Upload artifact
