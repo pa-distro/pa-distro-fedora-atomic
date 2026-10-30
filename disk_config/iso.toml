@@ -6,12 +6,10 @@ timezone = "Europe/Rome"
 languages = ["it_IT.UTF-8"]
 keyboard = "it"
 
+# Con un kickstart personalizzato, bootc-image-builder non accetta
+# [[customizations.user]]: l'utente va definito nel kickstart.
 [customizations.installer.kickstart]
-contents = "graphical"
-
-[[customizations.user]]
-name = "pa"
-description = "Amministratore PA"
-password = "pa"                 # ⚠️ cambia
-shell = "/bin/zsh"
-groups = ["wheel"]
+contents = """
+graphical
+user --name=pa --gecos="Amministratore PA" --password=pa --plaintext --groups=wheel --shell=/bin/zsh
+"""
