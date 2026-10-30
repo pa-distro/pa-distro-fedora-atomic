@@ -47,7 +47,7 @@ jobs:
         run: |
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache /usr/local/share/boost /usr/share/swift
           sudo docker image prune --all --force || true
-          df -h /
+          df -h / /mnt 2>/dev/null || df -h /
 
       # L'immagine su ghcr.io è privata: l'action fa "sudo podman pull", quindi
       # il login va fatto con podman come root.
