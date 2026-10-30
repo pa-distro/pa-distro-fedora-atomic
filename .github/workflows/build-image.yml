@@ -100,6 +100,11 @@ jobs:
       - name: Sign image
         env:
           COSIGN_PRIVATE_KEY: ${{ secrets.SIGNING_SECRET }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
         run: |
+          if [ -z "$COSIGN_PRIVATE_KEY" ]; then
+            echo "::warning::Secret SIGNING_SECRET non impostato: immagine pubblicata senza firma cosign"
+            exit 0
+          fi
           cosign sign --yes --key env://COSIGN_PRIVATE_KEY \
             "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}"

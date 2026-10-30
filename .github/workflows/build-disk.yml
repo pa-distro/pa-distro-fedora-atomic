@@ -34,6 +34,11 @@ jobs:
       - name: Checkout
         uses: useblacksmith/checkout@v1
 
+      # L'immagine su ghcr.io è privata: l'action fa "sudo podman pull", quindi
+      # il login va fatto con podman come root.
+      - name: Login to GHCR
+        run: echo "${{ github.token }}" | sudo podman login ghcr.io -u "${{ github.actor }}" --password-stdin
+
       - name: Build disk image
         id: build
         uses: osbuild/bootc-image-builder-action@main
