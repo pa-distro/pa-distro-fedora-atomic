@@ -1,8 +1,7 @@
 # Justfile — PA Desktop (variante Aurora-style)
 #
-# Prerequisiti: docker (daemon attivo) + plugin buildx, just.
-#   sudo systemctl enable --now docker
-#   sudo pacman -S --needed docker-buildx
+# Prerequisiti: podman (rootless va bene), just.
+#   sudo apt-get install -y podman just
 #
 # Stadio A (immagine):
 #   just build   -> OCI image pa-desktop-aurora:latest
@@ -22,9 +21,9 @@ image_name := env("IMAGE_NAME", "pa-desktop-aurora")
 image_tag  := env("IMAGE_TAG", "latest")
 local_image := image_name + ":" + image_tag
 registry   := env("REGISTRY", "")
-bib_image  := "quay.io/centos-bootc/bootc-image-builder:latest"
+bib_image  := env("BIB_IMAGE", "quay.io/centos-bootc/bootc-image-builder:latest")
 
-# Registry locale usato da bootc-image-builder (che con docker non può usare --local)
+# Registry locale usato da bootc-image-builder
 registry_container := env("REGISTRY_NAME", "pa-registry")
 registry_port      := env("REGISTRY_PORT", "5005")
 registry_ref       := "localhost:" + registry_port + "/" + image_name + ":" + image_tag
@@ -34,46 +33,38 @@ lock_file := env("LOCK_FILE", ".build.lock")
 default:
     @just --list
 
-# Verifica docker, buildx, storage driver, registry e lock
+# Verifica podman, driver di storage, registry e lock
 doctor:
     #!/usr/bin/env bash
     set -uo pipefail
     rc=0
 
-    if ! command -v docker >/dev/null 2>&1; then
-      echo "✗ docker non installato"; exit 1
+    if ! command -v podman >/dev/null 2>&1; then
+      echo "✗ podman non installato"; exit 1
     fi
-    echo "✓ docker: $(docker --version)"
+    echo "✓ podman: $(podman --version)"
 
-    if ! docker info >/dev/null 2>&1; then
-      echo "✗ daemon docker non raggiungibile"
-      echo "  sudo systemctl enable --now docker"
+    if ! podman info >/dev/null 2>&1; then
+      echo "✗ podman non raggiungibile"
+      echo "  rootless: controlla /etc/subuid e /etc/subgid"
       exit 1
     fi
-    driver=$(docker info 2>/dev/null | awk -F': ' '/Storage Driver:/{print $2; exit}')
-    echo "✓ daemon attivo — storage driver: ${driver:-?}"
+    driver=$(podman info --format '{{.Store.GraphDriverName}}' 2>/dev/null)
+    echo "✓ podman attivo — graph driver: ${driver:-?}"
     if [ "$driver" = "btrfs" ]; then
-      echo "⚠ storage driver 'btrfs' (deprecato): usa overlay2/containerd, vedi README"
+      echo "⚠ graph driver 'btrfs' (deprecato): usa overlay, vedi README"
       rc=1
     fi
 
-    if docker buildx version >/dev/null 2>&1; then
-      echo "✓ buildx: $(docker buildx version | head -1)"
+    if podman unshare true >/dev/null 2>&1; then
+      echo "✓ rootless ok (userns)"
     else
-      echo "✗ manca il plugin buildx (obbligatorio: il Containerfile usa RUN --mount)"
-      echo "  sudo pacman -S docker-buildx"
+      echo "⚠ podman unshare fallito: controlla /etc/subuid e /etc/subgid"
       rc=1
     fi
 
-    if id -nG "$USER" | grep -qw docker; then
-      echo "✓ utente nel gruppo docker"
-    else
-      echo "⚠ utente non nel gruppo docker: sudo usermod -aG docker $USER (poi ri-login)"
-      rc=1
-    fi
-
-    if docker container inspect "{{registry_container}}" >/dev/null 2>&1; then
-      echo "✓ registry {{registry_container}} presente (127.0.0.1:{{registry_port}})"
+    if podman container inspect "{{registry_container}}" >/dev/null 2>&1; then
+      echo "• registry {{registry_container}} presente (127.0.0.1:{{registry_port}})"
     else
       echo "• registry {{registry_container}} non creato (lo crea disk-image/iso)"
     fi
@@ -84,7 +75,7 @@ doctor:
       echo "✓ lock libero: {{lock_file}}"
     fi
 
-    if docker image inspect "{{local_image}}" >/dev/null 2>&1; then
+    if podman image inspect "{{local_image}}" >/dev/null 2>&1; then
       echo "✓ immagine presente: {{local_image}}"
     else
       echo "• immagine assente: esegui 'just build'"
@@ -92,10 +83,9 @@ doctor:
 
     exit $rc
 
-# Prepara l'host (solo Arch/CachyOS): daemon docker + plugin buildx
+# Prepara l'host (Parrot/Debian, installazione via apt)
 setup-host:
-    sudo systemctl enable --now docker
-    sudo pacman -S --needed docker-buildx
+    sudo apt-get update && sudo apt-get install -y podman just qemu-system-x86
 
 # Build dell'immagine OCI
 build:
@@ -107,9 +97,8 @@ build:
       echo "Attendi la fine oppure usa LOCK_WAIT=600 just build." >&2
       exit 1
     fi
-    docker info >/dev/null 2>&1 || { echo "docker non attivo: sudo systemctl enable --now docker" >&2; exit 1; }
-    docker buildx version >/dev/null 2>&1 || { echo "manca buildx: sudo pacman -S docker-buildx" >&2; exit 1; }
-    docker buildx build --load --pull \
+    podman info >/dev/null 2>&1 || { echo "podman non raggiungibile" >&2; exit 1; }
+    podman build --pull \
       --file Containerfile.in \
       --tag "{{local_image}}" \
       --build-arg IMAGE_NAME="{{image_name}}" \
@@ -121,8 +110,8 @@ build:
 lint:
     #!/usr/bin/env bash
     set -euo pipefail
-    docker image inspect "{{local_image}}" >/dev/null 2>&1 || { echo "manca {{local_image}}: esegui 'just build'" >&2; exit 1; }
-    docker run --rm "{{local_image}}" bootc container lint --fatal-warnings --no-truncate
+    podman image inspect "{{local_image}}" >/dev/null 2>&1 || { echo "manca {{local_image}}: esegui 'just build'" >&2; exit 1; }
+    podman run --rm "{{local_image}}" bootc container lint --fatal-warnings --no-truncate
 
 # Push su registry (richiede REGISTRY, es. ghcr.io/OWNER)
 push:
@@ -131,11 +120,11 @@ push:
     if [ -z "{{registry}}" ]; then
       echo "REGISTRY non impostato (es. REGISTRY=ghcr.io/tuo-utente just push)"; exit 1
     fi
-    docker tag "{{local_image}}" "{{registry}}/{{image_name}}:{{image_tag}}"
+    podman tag "{{local_image}}" "{{registry}}/{{image_name}}:{{image_tag}}"
     # ~260 layer: ghcr.io può rispondere 429. I blob già caricati vengono saltati,
     # quindi ritentare riprende da dove si era fermato.
     for i in 1 2 3 4 5; do
-      docker push "{{registry}}/{{image_name}}:{{image_tag}}" && exit 0
+      podman push "{{registry}}/{{image_name}}:{{image_tag}}" && exit 0
       [ "$i" -eq 5 ] && break
       echo "push fallito (tentativo $i/5), riprovo tra $((i * 30))s" >&2
       sleep $((i * 30))
@@ -151,9 +140,9 @@ secureboot:
       echo "sbverify non trovato (sbsigntools): salto il controllo"; exit 0
     fi
     TMP=$(mktemp -d)
-    CID=$(docker create "{{local_image}}")
-    docker cp "$CID":/usr/lib/modules "$TMP/modules" 2>/dev/null || true
-    docker rm "$CID" >/dev/null
+    CID=$(podman create "{{local_image}}")
+    podman cp "$CID":/usr/lib/modules "$TMP/modules" 2>/dev/null || true
+    podman rm "$CID" >/dev/null
     VMLINUZ=$(find "$TMP/modules" -name vmlinuz | head -1 || true)
     if [ -z "$VMLINUZ" ]; then echo "vmlinuz non trovato: salto"; rm -rf "$TMP"; exit 0; fi
     sbverify --list "$VMLINUZ"
@@ -163,11 +152,11 @@ secureboot:
 registry-up:
     #!/usr/bin/env bash
     set -euo pipefail
-    docker info >/dev/null 2>&1 || { echo "docker non attivo: sudo systemctl enable --now docker" >&2; exit 1; }
-    if docker container inspect "{{registry_container}}" >/dev/null 2>&1; then
-      docker start "{{registry_container}}" >/dev/null 2>&1 || true
+    podman info >/dev/null 2>&1 || { echo "podman non raggiungibile" >&2; exit 1; }
+    if podman container inspect "{{registry_container}}" >/dev/null 2>&1; then
+      podman start "{{registry_container}}" >/dev/null 2>&1 || true
     else
-      docker run -d --name "{{registry_container}}" \
+      podman run -d --name "{{registry_container}}" \
         --restart unless-stopped \
         -p "127.0.0.1:{{registry_port}}:5000" \
         docker.io/library/registry:2 >/dev/null || true
@@ -184,8 +173,8 @@ registry-up:
 
 # Ferma e rimuove il registry locale
 registry-down:
-    -docker stop {{registry_container}}
-    -docker rm {{registry_container}}
+    -podman stop {{registry_container}}
+    -podman rm {{registry_container}}
 
 # Stadio B: qcow2 per QEMU
 disk-image: registry-up
@@ -196,17 +185,26 @@ disk-image: registry-up
       echo "ERRORE: un'altra operazione PA è in corso (lock {{lock_file}})." >&2
       exit 1
     fi
-    docker image inspect "{{local_image}}" >/dev/null 2>&1 || { echo "manca {{local_image}}: esegui 'just build'" >&2; exit 1; }
-    docker tag "{{local_image}}" "{{registry_ref}}"
-    docker push "{{registry_ref}}"
+    podman image inspect "{{local_image}}" >/dev/null 2>&1 || { echo "manca {{local_image}}: esegui 'just build'" >&2; exit 1; }
+    podman tag "{{local_image}}" "{{registry_ref}}"
+    # podman (Debian/Parrot) non fa fallback https->http per localhost: serve
+    # --tls-verify=false per il registry locale non cifrato
+    # NB: non si applica al push verso registry remoti (riceve TLS vero)
+    podman push --tls-verify=false "{{registry_ref}}"
     mkdir -p output
-    docker run --rm --privileged --pull=always \
+    # bib richiede (1) podman rootful (validazione interna, come l'azione CI che
+    # fa "sudo podman pull") e (2) lo storage rootful montato nel container.
+    sudo podman pull --tls-verify=false "{{registry_ref}}"
+    sudo podman run --rm --privileged --pull=always \
       --network host \
       --security-opt label=disable \
+      -v /var/lib/containers/storage:/var/lib/containers/storage \
+      -v "{{justfile_directory()}}/registry-localhost.conf:/etc/containers/registries.conf.d/localhost.conf:ro" \
       -v "{{justfile_directory()}}/disk_config:/config:ro" \
       -v "{{justfile_directory()}}/output:/output" \
       "{{bib_image}}" \
       --type qcow2 --config /config/disk.toml "{{registry_ref}}"
+    sudo chown -R "$(id -u):$(id -g)" output || true
     echo "→ output/qcow2/disk.qcow2"
 
 # Stadio B: ISO installer (USB / hardware)
@@ -218,17 +216,23 @@ iso: registry-up
       echo "ERRORE: un'altra operazione PA è in corso (lock {{lock_file}})." >&2
       exit 1
     fi
-    docker image inspect "{{local_image}}" >/dev/null 2>&1 || { echo "manca {{local_image}}: esegui 'just build'" >&2; exit 1; }
-    docker tag "{{local_image}}" "{{registry_ref}}"
-    docker push "{{registry_ref}}"
+    podman image inspect "{{local_image}}" >/dev/null 2>&1 || { echo "manca {{local_image}}: esegui 'just build'" >&2; exit 1; }
+    podman tag "{{local_image}}" "{{registry_ref}}"
+    podman push --tls-verify=false "{{registry_ref}}"
     mkdir -p output
-    docker run --rm --privileged --pull=always \
+    # bib richiede (1) podman rootful (validazione interna, come l'azione CI che
+    # fa "sudo podman pull") e (2) lo storage rootful montato nel container.
+    sudo podman pull --tls-verify=false "{{registry_ref}}"
+    sudo podman run --rm --privileged --pull=always \
       --network host \
       --security-opt label=disable \
+      -v /var/lib/containers/storage:/var/lib/containers/storage \
+      -v "{{justfile_directory()}}/registry-localhost.conf:/etc/containers/registries.conf.d/localhost.conf:ro" \
       -v "{{justfile_directory()}}/disk_config:/config:ro" \
       -v "{{justfile_directory()}}/output:/output" \
       "{{bib_image}}" \
       --type anaconda-iso --config /config/iso.toml "{{registry_ref}}"
+    sudo chown -R "$(id -u):$(id -g)" output || true
     echo "→ output/iso/*.iso"
 
 # Pulizia (immagine locale + output)
@@ -241,5 +245,5 @@ clean:
       exit 1
     fi
     rm -rf output
-    docker rmi "{{local_image}}" >/dev/null 2>&1 || true
-    docker rmi "{{registry_ref}}" >/dev/null 2>&1 || true
+    podman rmi "{{local_image}}" >/dev/null 2>&1 || true
+    podman rmi "{{registry_ref}}" >/dev/null 2>&1 || true

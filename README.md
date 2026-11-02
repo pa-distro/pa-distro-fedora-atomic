@@ -11,7 +11,7 @@
 
 ```text
 Containerfile.in + build_scripts/
-        │ just build (docker buildx)
+        │ just build (podman)
         ▼
    OCI image (pa-desktop-aurora:latest)
         │                                  ┌── just disk-image → qcow2 → QEMU
@@ -21,7 +21,7 @@ Containerfile.in + build_scripts/
 
 | Stadio | Cosa fa | File | Tool |
 |---|---|---|---|
-| **A — immagine** | costruisce l'OS | `Containerfile.in`, `build_scripts/` | `docker buildx`, `bootc container lint` |
+| **A — immagine** | costruisce l'OS | `Containerfile.in`, `build_scripts/` | `podman`, `bootc container lint` |
 | **B — disco/ISO** | rende l'immagine avviabile | `disk_config/*.toml` | `bootc-image-builder` + registry locale |
 
 > [!NOTE]
@@ -56,20 +56,19 @@ pa-distro-aurora/
 
 ---
 
-## Prerequisiti (CachyOS/Arch)
+## Prerequisiti (host locale: Parrot 7.4 "echo", via apt)
 
 | Strumento | Installazione |
 |---|---|
-| `docker` | `sudo pacman -S docker` poi `sudo systemctl enable --now docker` |
-| `docker-buildx` | `sudo pacman -S docker-buildx` (obbligatorio: il Containerfile usa BuildKit) |
-| `just` | ✅ già presente |
-| `qemu-system-x86_64` | ✅ già presente |
-| `bootc-image-builder` | immagine `quay.io/centos-bootc/bootc-image-builder` (via docker) |
+| `podman` | `sudo apt-get install -y podman` (rootless va bene, controlla `/etc/subuid` e `/etc/subgid`) |
+| `just` | `sudo apt-get install -y just` (se assente nei repo: `cargo install just` oppure il pacchetto di GitHub releases) |
+| `qemu-system-x86` | `sudo apt-get install -y qemu-system-x86` (per provare il qcow2: `/dev/kvm` disponibile → accelerazione hardware) |
+| `bootc-image-builder` | immagine `quay.io/centos-bootc/bootc-image-builder` (via podman) |
 | `sbsigntools` (opz.) | per `just secureboot` |
 
 > [!TIP]
-> `just setup-host` esegue i due comandi con `sudo` (solo Arch/CachyOS);
-> `just doctor` controlla daemon, plugin buildx, storage driver e lock.
+> `just setup-host` esegue l'installazione con `sudo` (solo Parrot/Debian);
+> `just doctor` controlla podman, graph driver, userns e lock.
 
 ---
 
@@ -77,10 +76,10 @@ pa-distro-aurora/
 
 ```bash
 # Controllo ambiente
-just doctor         # docker attivo? buildx? driver? lock libero?
+just doctor         # podman ok? driver? userns? lock libero?
 
 # Stadio A
-just build          # docker buildx -> pa-desktop-aurora:latest
+just build          # podman build -> pa-desktop-aurora:latest
 just lint           # bootc container lint
 just secureboot     # best effort
 
@@ -94,41 +93,32 @@ REGISTRY=ghcr.io/TUO-UTENTE just push
 ```
 
 > [!WARNING]
-> `bootc-image-builder` lanciato con Docker **non può usare `--local`** (quello
-> richiede lo storage di containers/podman). `just disk-image`/`just iso` quindi
-> pubblicano l'immagine su un registry locale (`pa-registry`, `127.0.0.1:5005`)
-> e passano a bib il riferimento; il container bib gira con `--network host`.
-> Per **Secure Boot** in test: immagini non firmate → SB disattivato o enroll delle chiavi.
+> `bootc-image-builder` riceve l'immagine **da un registry**, non dallo storage
+> locale. `just disk-image`/`just iso` quindi pubblicano l'immagine su un
+> registry locale (`pa-registry`, `127.0.0.1:5005`) e passano a bib il
+> riferimento; il container bib gira con `--network host`. Il push verso
+> localhost richiede `--tls-verify=false` su podman (Debian/Parrot non
+> riconosce localhost come insicuro); bib legge invece la drop-in
+> `registries.conf.d` che la ricetta monta nel container. Per **Secure Boot**
+> in test: immagini non firmate → SB disattivato o enroll delle chiavi.
 
 ---
 
-## Docker, btrfs e lock
+## Podman, btrfs e lock
 
-**Perché Docker su btrfs.** Docker Engine 29 usa di default lo store containerd
-con snapshotter `overlayfs` sulle installazioni nuove (se hai aggiornato da una
-versione precedente resta `overlay2`, che su btrfs funziona comunque): in entrambi
-i casi si evitano i problemi del driver `btrfs` nativo, che è deprecato. Se `just doctor`
-segnala `storage driver: btrfs`, imposta in `/etc/docker/daemon.json` una delle
-due configurazioni (poi `sudo systemctl restart docker`):
+**Perché podman.** Non c'è daemon da attivare: podman gira rootless e usa lo
+storage di `containers-storage`. Il driver consigliato è `overlay` (default);
+il driver `btrfs` nativo è deprecato. Se `just doctor` segnala
+`graph driver: btrfs`, imposta in `/etc/containers/storage.conf`:
 
-```json
-{
-  "features": {
-    "containerd-snapshotter": true
-  }
-}
+```toml
+[storage]
+driver = "overlay"
 ```
 
-```json
-{
-  "storage-driver": "overlay2"
-}
-```
-
-La prima è il default moderno (snapshotter `overlayfs`); la seconda è il driver
-classico, ugualmente supportato su btrfs. Nota: cambiando backend le immagini già
-presenti spariscono dall'elenco (i layer restano su disco); su un'installazione
-nuova non è un problema.
+(poi eventualmente `podman system reset` per ricostruire lo storage; le
+immagini già presenti spariscono dall'elenco). Nota: su installazioni nuove
+podman sceglie comunque overlay, quindi in genere non serve toccare nulla.
 
 **Lock di build.** `build`, `disk-image`, `iso` e `clean` sono serializzati da
 `flock` sul file `.build.lock` (in `.gitignore`). Se un'altra operazione è in
@@ -139,7 +129,7 @@ LOCK_WAIT=600 just build
 LOCK_FILE=/tmp/pa.lock just disk-image   # lock alternativo
 ```
 
-Serve a evitare due `docker build`/bib in parallelo, che si contenderebbero
+Serve a evitare due `podman build`/bib in parallelo, che si contenderebbero
 storage, tag e registry locale. `just doctor` mostra se il lock è occupato.
 
 **Registry locale.** `just disk-image`/`just iso` creano (se assente) un container
@@ -155,7 +145,7 @@ build, `sudo chown -R "$USER:$USER" output`.
 | | `pa-distro/` (BlueBuild) | `pa-distro-aurora/` (Containerfile) |
 |---|---|---|
 | Cosa scrivi | `recipe.yml` + moduli | `Containerfile.in` + script shell |
-| Build | `bluebuild build` | `just build` (`docker buildx`) |
+| Build | `bluebuild build` | `just build` (`podman`) |
 | Finalizzazione | gestita dai moduli | `bootc container lint` esplicito |
 | Composizione moduli | `from-file` dichiarativo | script numerati |
 | ISO | `bluebuild generate-iso` | `build-disk.yml` / `just iso` |
@@ -205,7 +195,7 @@ Dove vivono i default:
 ## Note
 
 - Base: `quay.io/fedora-ostree-desktops/kinoite:44`, solo `x86_64` (Plasma 6.7.5).
-- Build con **Docker** (buildx/BuildKit) e registry locale per `bootc-image-builder`; niente podman/buildah.
+- Build con **podman** e registry locale per `bootc-image-builder`; niente Docker/buildx, i `RUN --mount` del Containerfile sono gestiti nativamente da buildah.
 - Lock di build in `.build.lock` (`flock`), condiviso da `build`, `disk-image`, `iso`, `clean`.
 - Login manager: **Plasma Login Manager** (`plasmalogin`), non SDDM; il wallpaper PA è impostato in `/etc/plasmalogin.conf`.
 - Pacchetti aggiunti per il tema/terminale: `zsh`, `fastfetch`, `btop`, `source-foundry-hack-fonts`, `gtk-update-icon-cache`.
@@ -213,4 +203,19 @@ Dove vivono i default:
 - AD/LDAP: decommenta il blocco in `build_scripts/base/01-packages.sh`.
 - AppImage: `desktop-file-utils` incluso; `appimagelauncher` va aggiunto via COPR/Flatpak.
 - `cosign.pub.example` è un segnaposto: genera la coppia con `cosign generate-key-pair`.
-- L'immagine buildata in precedenza con buildah/podman resta nello storage podman (~9 GB): `podman rmi localhost/pa-desktop-aurora:latest` per liberare spazio.
+- Le immagini buildate con Docker nel periodo "docker" restano nello storage di
+  Docker (~9 GB): `docker rmi pa-desktop-aurora:latest` per liberare spazio.
+- **Stadio B bib**: la ricetta lancia `bootc-image-builder` con `sudo podman run`
+  (rootful, perché la validazione interna di bib lo richiede) e montando
+  `/var/lib/containers/storage` nel container: bib non vede lo storage di
+  podman rootless e ha bisogno del pull rootful dell'immagine
+  (`sudo podman pull --tls-verify=false`) prima dell'avvio — lo fa da sé la
+  action CI (`bootc-image-builder-action`). Il pull locale del registry passa
+  da `registry-localhost.conf` (marca `localhost:5005` insicuro). L'output
+  nasce root: la ricetta fa `sudo chown` su `output/`.
+- **CPU x86-64-v2 (pre-Haswell, es. i5-3340M)**: `bootc-image-builder:latest`
+  (dal commit "install image-builder from CS10 RPM", 2026-10-01) richiede
+  x86-64-v3 e va in `Fatal glibc error: CPU does not support x86-64-v3`.
+  Su CPU v2 pinnare `BIB_IMAGE` a un digest del 18 Jun 2026 (base fedora 42,
+  v2-compatible):
+  `quay.io/centos-bootc/bootc-image-builder@sha256:afeffdb5a7ab6bb9d0593b5765412c4d821a9492dbaf26bb5a494e27181d2019`.
