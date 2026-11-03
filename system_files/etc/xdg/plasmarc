@@ -1,0 +1,12 @@
+# PA Desktop — Plasma defaults (ported from Parrot OS, adapted wallpaper)
+[OSD]
+Enabled=true
+
+[PlasmaToolTips]
+Delay=0.7
+
+[Theme]
+name=default
+
+[Wallpapers]
+usersWallpapers=/usr/share/wallpapers/PA/contents/images/1920x1080.png

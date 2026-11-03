@@ -209,6 +209,20 @@ Dove vivono i default:
 
 ---
 
+## Firefox: estensioni e bookmark
+
+- `policies.json` installa da AMO **uBlock Origin** e **NoScript** (`force_installed`).
+- Bookmark gestiti centralmente nella cartella **“Servizi PA e CAF”** (INPS, Poste, Agenzia Entrate, PagoPA, SPID, CIE, ANPR, INAIL, NoiPA, FSE, Regioni, Comuni, AgID, Italia.it).
+- **NoScript è attivo sempre:** al primo accesso ai portali PA (INPS, Poste, PagoPA, SPID) va autorizzato il sito.
+
+## Crediti e licenze
+
+- Progetto: **GPL-3.0-or-later** — vedi [LICENSE](LICENSE).
+- Fonti, versioni e licenze: [CREDITS.md](CREDITS.md).
+- Testi licenza: `LICENSES/`.
+
+---
+
 ## Note
 
 - Base: `quay.io/fedora-ostree-desktops/kinoite:44`, solo `x86_64` (Plasma 6.7.5).

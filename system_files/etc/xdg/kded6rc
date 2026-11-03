@@ -1,0 +1,35 @@
+# PA Desktop — KDE daemon defaults (ported from Parrot OS parrot-core, adapted)
+# Disable modules not needed on a PA workstation.
+[Module-baloosearchmodule]
+autoload=false
+
+[Module-filenamesearchmodule]
+autoload=false
+
+[Module-donationmessage]
+autoload=false
+
+[Module-browserintegrationreminder]
+autoload=false
+
+[Module-kded_plasma-welcome]
+autoload=false
+
+[Module-colorcorrectlocationupdater]
+autoload=false
+
+[Module-kameleon]
+autoload=false
+
+[Module-kded_bolt]
+autoload=false
+
+[Module-plasmavault]
+autoload=false
+
+[Module-smbwatcher]
+autoload=false
+
+# Parrot-style: niente automount delle periferiche rimovibili
+[Module-device_automounter]
+autoload=false

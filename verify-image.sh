@@ -35,8 +35,23 @@ for p in \
 done
 
 # --- File di configurazione ---
-for f in /etc/locale.conf /etc/vconsole.conf /etc/skel/README-PA.txt; do
+for f in /etc/locale.conf /etc/vconsole.conf /etc/skel/README-PA.txt \
+         /etc/xdg/kded6rc /etc/xdg/baloofilerc /etc/xdg/plasmarc \
+         /etc/firefox/policies/policies.json /etc/firefox/pref/00-pa.js; do
   [ -e "$f" ] && pass "file:$f" || fail "file:$f"
+done
+
+# Automount KDE disabilitato (Parrot)
+grep -q 'Module-device_automounter' /etc/xdg/kded6rc 2>/dev/null \
+  && pass "kde:automount off" || fail "kde:automount off"
+
+# Firefox: estensioni e bookmark PA
+for needle in \
+  'uBlock0@raymondhill.net' \
+  '73a6fe31-595d-460b-a920-fcc0f8843232' \
+  'Servizi PA e CAF'; do
+  grep -q "$needle" /etc/firefox/policies/policies.json 2>/dev/null \
+    && pass "firefox:$needle" || fail "firefox:$needle"
 done
 
 # --- Servizi ---

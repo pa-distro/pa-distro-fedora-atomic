@@ -1,0 +1,3 @@
+# PA Desktop — Baloo indexing disabled (ported from Parrot OS)
+[Basic Settings]
+Indexing-Enabled=false

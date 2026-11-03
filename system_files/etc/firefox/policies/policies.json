@@ -1,0 +1,96 @@
+{
+  "policies": {
+    "DisableAppUpdate": true,
+    "DisplayBookmarksToolbar": true,
+    "NoDefaultBookmarks": true,
+    "OverrideFirstRunPage": "",
+    "OverridePostUpdatePage": "",
+    "Homepage": {
+      "URL": "https://www.agid.gov.it/",
+      "Locked": false,
+      "StartPage": "homepage"
+    },
+    "SearchEngines": {
+      "Default": "DuckDuckGo",
+      "PreventInstalls": true
+    },
+    "SearchSuggestEnabled": false,
+    "DisableTelemetry": true,
+    "CaptivePortal": false,
+    "Cookies": {
+      "Behavior": "reject-tracker-and-partition-foreign",
+      "Locked": true
+    },
+    "DNSOverHTTPS": {
+      "Enabled": false
+    },
+    "UserMessaging": {
+      "WhatsNew": false,
+      "ExtensionRecommendations": false,
+      "FeatureRecommendations": false,
+      "UrlbarInterventions": false,
+      "SkipOnboarding": true
+    },
+    "DisableFeedbackCommands": true,
+    "DisableFirefoxStudies": true,
+    "DisablePocket": true,
+    "DontCheckDefaultBrowser": true,
+    "EnableTrackingProtection": {
+      "Value": true,
+      "Cryptomining": true,
+      "Fingerprinting": true
+    },
+    "FirefoxHome": {
+      "Search": true,
+      "TopSites": false,
+      "Highlights": false,
+      "Pocket": false,
+      "Snippets": false,
+      "Locked": false
+    },
+    "HardwareAcceleration": true,
+    "NetworkPrediction": false,
+    "PopupBlocking": {
+      "Default": false,
+      "Locked": false
+    },
+    "PromptForDownloadLocation": true,
+    "SupportMenu": {
+      "Title": "Supporto PA",
+      "URL": "https://www.agid.gov.it/",
+      "AccessKey": "S"
+    },
+    "ExtensionSettings": {
+      "uBlock0@raymondhill.net": {
+        "installation_mode": "force_installed",
+        "install_url": "https://addons.mozilla.org/firefox/downloads/latest/ublock-origin/latest.xpi"
+      },
+      "{73a6fe31-595d-460b-a920-fcc0f8843232}": {
+        "installation_mode": "force_installed",
+        "install_url": "https://addons.mozilla.org/firefox/downloads/latest/noscript/latest.xpi"
+      }
+    },
+    "ManagedBookmarks": [
+      {
+        "t": "Servizi PA e CAF",
+        "children": [
+          { "t": "INPS", "u": "https://www.inps.it/" },
+          { "t": "Poste Italiane", "u": "https://www.poste.it/" },
+          { "t": "Agenzia delle Entrate", "u": "https://www.agenziaentrate.gov.it/" },
+          { "t": "Agenzia Entrate Riscossione", "u": "https://www.agenziaentrateriscossione.gov.it/" },
+          { "t": "PagoPA", "u": "https://www.pagopa.gov.it/" },
+          { "t": "SPID", "u": "https://www.spid.gov.it/" },
+          { "t": "CIE", "u": "https://www.cartaidentita.interno.gov.it/" },
+          { "t": "ANPR", "u": "https://www.anpr.interno.it/" },
+          { "t": "INAIL", "u": "https://www.inail.it/" },
+          { "t": "NoiPA", "u": "https://www.noipa.it/" },
+          { "t": "Fascicolo Sanitario Elettronico", "u": "https://www.fascicolosanitario.gov.it/portale" },
+          { "t": "Regioni", "u": "https://www.regioni.it/" },
+          { "t": "Comuni d'Italia", "u": "https://www.comuni-italiani.it/" },
+          { "t": "AgID", "u": "https://www.agid.gov.it/" },
+          { "t": "Italia.it", "u": "https://www.italia.it/" }
+        ]
+      }
+    ]
+  }
+}
