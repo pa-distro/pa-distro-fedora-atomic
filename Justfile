@@ -1,105 +1,89 @@
-# Justfile — PA Desktop (variante Aurora-style)
+# Justfile — PA Desktop (podman)
 #
-# Prerequisiti: podman (rootless va bene), just.
-#   sudo apt-get install -y podman just
+# Prerequisiti: podman + buildah + just.
 #
 # Stadio A (immagine):
-#   just build   -> OCI image pa-desktop-aurora:latest
-#   just lint    -> bootc container lint
-#   just push    -> push su registry (se REGISTRY è impostato)
+#   just build        -> localhost/pa-desktop-aurora:latest (rootless)
+#   just lint         -> bootc container lint
+#   just push         -> push su registry remoto (REGISTRY=...)
 #
 # Stadio B (disco/ISO):
-#   just disk-image -> qcow2 (QEMU)
-#   just iso        -> ISO installer (USB/hardware)
+#   just disk-image   -> registry locale 127.0.0.1:5005 + bib rootful -> qcow2
+#   just iso          -> idem -> ISO
+#   just disk-image-offline / iso-offline -> copia rootful (save|load), senza registry
 #
-# Le operazioni pesanti sono serializzate da un lock flock (default .build.lock):
-#   LOCK_WAIT=600 just disk-image   # aspetta invece di fallire subito
-#   LOCK_FILE=/tmp/pa.lock just build
+# Registry locale:
+#   just registry-up / registry-down
+#   config: registry-localhost.conf (insecure=true per localhost:5005)
 set shell := ["bash", "-uc"]
 
 image_name := env("IMAGE_NAME", "pa-desktop-aurora")
 image_tag  := env("IMAGE_TAG", "latest")
-local_image := image_name + ":" + image_tag
+local_image := "localhost/" + image_name + ":" + image_tag
 registry   := env("REGISTRY", "")
 bib_image  := env("BIB_IMAGE", "quay.io/centos-bootc/bootc-image-builder:latest")
+lock_file  := env("LOCK_FILE", ".build.lock")
 
-# Registry locale usato da bootc-image-builder
 registry_container := env("REGISTRY_NAME", "pa-registry")
 registry_port      := env("REGISTRY_PORT", "5005")
 registry_ref       := "localhost:" + registry_port + "/" + image_name + ":" + image_tag
-
-lock_file := env("LOCK_FILE", ".build.lock")
+registry_conf      := justfile_directory() + "/registry-localhost.conf"
 
 default:
     @just --list
 
-# Verifica podman, driver di storage, registry e lock
+# Stato di podman, storage, registry e spazio
 doctor:
     #!/usr/bin/env bash
     set -uo pipefail
-    rc=0
-
-    if ! command -v podman >/dev/null 2>&1; then
-      echo "✗ podman non installato"; exit 1
-    fi
-    echo "✓ podman: $(podman --version)"
-
-    if ! podman info >/dev/null 2>&1; then
-      echo "✗ podman non raggiungibile"
-      echo "  rootless: controlla /etc/subuid e /etc/subgid"
-      exit 1
-    fi
-    driver=$(podman info --format '{{.Store.GraphDriverName}}' 2>/dev/null)
-    echo "✓ podman attivo — graph driver: ${driver:-?}"
-    if [ "$driver" = "btrfs" ]; then
-      echo "⚠ graph driver 'btrfs' (deprecato): usa overlay, vedi README"
-      rc=1
-    fi
-
-    if podman unshare true >/dev/null 2>&1; then
-      echo "✓ rootless ok (userns)"
-    else
-      echo "⚠ podman unshare fallito: controlla /etc/subuid e /etc/subgid"
-      rc=1
-    fi
-
+    command -v podman >/dev/null 2>&1 || { echo "✗ podman non installato"; exit 1; }
+    podman info >/dev/null 2>&1 || { echo "✗ podman non funziona"; exit 1; }
+    echo "✓ podman $(podman --version | awk '{print $3}')"
+    echo "✓ storage: $(podman info | awk '/graphRoot:/{print $2; exit}')"
+    echo "✓ conf registry: {{registry_conf}}"
     if podman container inspect "{{registry_container}}" >/dev/null 2>&1; then
-      echo "• registry {{registry_container}} presente (127.0.0.1:{{registry_port}})"
+      echo "✓ registry {{registry_container}} presente (127.0.0.1:{{registry_port}})"
     else
-      echo "• registry {{registry_container}} non creato (lo crea disk-image/iso)"
+      echo "• registry {{registry_container}} non creato"
     fi
-
-    if [ -e "{{lock_file}}" ] && ! flock -n "{{lock_file}}" true 2>/dev/null; then
-      echo "⚠ lock occupato: {{lock_file}} (altra build in corso)"
-    else
-      echo "✓ lock libero: {{lock_file}}"
-    fi
-
-    if podman image inspect "{{local_image}}" >/dev/null 2>&1; then
+    echo
+    podman system df
+    echo
+    df -h . | tail -1
+    echo
+    if podman image exists "{{local_image}}"; then
       echo "✓ immagine presente: {{local_image}}"
     else
       echo "• immagine assente: esegui 'just build'"
     fi
 
-    exit $rc
-
-# Prepara l'host (Parrot/Debian, installazione via apt)
-setup-host:
-    sudo apt-get update && sudo apt-get install -y podman just qemu-system-x86
-
-# Build dell'immagine OCI
+# Build rootless (ciclo veloce)
 build:
     #!/usr/bin/env bash
     set -euo pipefail
     exec 9>"{{lock_file}}"
     if ! flock -w "${LOCK_WAIT:-0}" 9; then
-      echo "ERRORE: un'altra operazione PA è in corso (lock {{lock_file}})." >&2
-      echo "Attendi la fine oppure usa LOCK_WAIT=600 just build." >&2
+      echo "ERRORE: altra operazione in corso (lock {{lock_file}})." >&2
+      echo "Usa LOCK_WAIT=600 just build" >&2
       exit 1
     fi
-    podman info >/dev/null 2>&1 || { echo "podman non raggiungibile" >&2; exit 1; }
-    podman build --pull \
-      --file Containerfile.in \
+    podman build --pull=newer --file Containerfile.in \
+      --tag "{{local_image}}" \
+      --build-arg IMAGE_NAME="{{image_name}}" \
+      --build-arg VERSION=dev \
+      --build-arg SHA_HEAD_SHORT="$(git rev-parse --short HEAD 2>/dev/null || echo deadbeef)" \
+      .
+
+# Build rootful (alternativa offline)
+build-rootful:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    exec 9>"{{lock_file}}"
+    if ! flock -w "${LOCK_WAIT:-0}" 9; then
+      echo "ERRORE: altra operazione in corso (lock {{lock_file}})." >&2
+      exit 1
+    fi
+    sudo podman build --pull=newer --file Containerfile.in \
       --tag "{{local_image}}" \
       --build-arg IMAGE_NAME="{{image_name}}" \
       --build-arg VERSION=dev \
@@ -108,12 +92,9 @@ build:
 
 # Validazione bootc
 lint:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    podman image inspect "{{local_image}}" >/dev/null 2>&1 || { echo "manca {{local_image}}: esegui 'just build'" >&2; exit 1; }
     podman run --rm "{{local_image}}" bootc container lint --fatal-warnings --no-truncate
 
-# Push su registry (richiede REGISTRY, es. ghcr.io/OWNER)
+# Push su registry remoto (richiede REGISTRY, es. ghcr.io/OWNER)
 push:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -121,16 +102,7 @@ push:
       echo "REGISTRY non impostato (es. REGISTRY=ghcr.io/tuo-utente just push)"; exit 1
     fi
     podman tag "{{local_image}}" "{{registry}}/{{image_name}}:{{image_tag}}"
-    # ~260 layer: ghcr.io può rispondere 429. I blob già caricati vengono saltati,
-    # quindi ritentare riprende da dove si era fermato.
-    for i in 1 2 3 4 5; do
-      podman push "{{registry}}/{{image_name}}:{{image_tag}}" && exit 0
-      [ "$i" -eq 5 ] && break
-      echo "push fallito (tentativo $i/5), riprovo tra $((i * 30))s" >&2
-      sleep $((i * 30))
-    done
-    echo "push fallito dopo 5 tentativi" >&2
-    exit 1
+    podman push "{{registry}}/{{image_name}}:{{image_tag}}"
 
 # Verifica firma del kernel (best effort: richiede sbsigntools)
 secureboot:
@@ -148,102 +120,224 @@ secureboot:
     sbverify --list "$VMLINUZ"
     rm -rf "$TMP"
 
-# Avvia (o crea) il registry locale per bootc-image-builder
+# Avvia (o crea) il registry locale per bib
 registry-up:
     #!/usr/bin/env bash
     set -euo pipefail
-    podman info >/dev/null 2>&1 || { echo "podman non raggiungibile" >&2; exit 1; }
     if podman container inspect "{{registry_container}}" >/dev/null 2>&1; then
       podman start "{{registry_container}}" >/dev/null 2>&1 || true
     else
       podman run -d --name "{{registry_container}}" \
         --restart unless-stopped \
         -p "127.0.0.1:{{registry_port}}:5000" \
-        docker.io/library/registry:2 >/dev/null || true
+        docker.io/library/registry:2 >/dev/null
     fi
     for _ in $(seq 1 30); do
       if curl -fsS "http://127.0.0.1:{{registry_port}}/v2/" >/dev/null 2>&1; then
-        echo "registry pronto: 127.0.0.1:{{registry_port}}"
-        exit 0
+        echo "registry pronto: 127.0.0.1:{{registry_port}}"; exit 0
       fi
       sleep 1
     done
     echo "ERRORE: registry non raggiungibile su 127.0.0.1:{{registry_port}}" >&2
     exit 1
 
-# Ferma e rimuove il registry locale
 registry-down:
-    -podman stop {{registry_container}}
-    -podman rm {{registry_container}}
+    -podman rm -f {{registry_container}}
 
-# Stadio B: qcow2 per QEMU
-disk-image: registry-up
+# Push rootless sul registry locale, usando la config del repo
+push-local: build
+    podman tag "{{local_image}}" "{{registry_ref}}"
+    CONTAINERS_REGISTRIES_CONF="{{registry_conf}}" podman push "{{registry_ref}}"
+
+# Copia rootless -> rootful (alternativa senza registry)
+ensure-rootful: build
     #!/usr/bin/env bash
     set -euo pipefail
-    exec 9>"{{lock_file}}"
-    if ! flock -w "${LOCK_WAIT:-0}" 9; then
-      echo "ERRORE: un'altra operazione PA è in corso (lock {{lock_file}})." >&2
-      exit 1
+    if sudo podman image exists "{{local_image}}"; then
+      echo "✓ immagine già presente nello storage rootful"
+      exit 0
     fi
-    podman image inspect "{{local_image}}" >/dev/null 2>&1 || { echo "manca {{local_image}}: esegui 'just build'" >&2; exit 1; }
-    podman tag "{{local_image}}" "{{registry_ref}}"
-    # podman (Debian/Parrot) non fa fallback https->http per localhost: serve
-    # --tls-verify=false per il registry locale non cifrato
-    # NB: non si applica al push verso registry remoti (riceve TLS vero)
-    podman push --tls-verify=false "{{registry_ref}}"
+    echo "→ copia rootless → rootful (~8.8 GB)"
+    podman save "{{local_image}}" | sudo podman load
+    echo "✓ copiata nello storage rootful"
+
+# Stadio B: qcow2 via registry locale (nuovo CLI image-builder)
+disk-image: registry-up push-local
     mkdir -p output
-    # bib richiede (1) podman rootful (validazione interna, come l'azione CI che
-    # fa "sudo podman pull") e (2) lo storage rootful montato nel container.
-    sudo podman pull --tls-verify=false "{{registry_ref}}"
     sudo podman run --rm --privileged --pull=always \
       --network host \
+      --cgroupns=host \
+      -v /run \
+      -v /var \
       --security-opt label=disable \
-      -v /var/lib/containers/storage:/var/lib/containers/storage \
-      -v "{{justfile_directory()}}/registry-localhost.conf:/etc/containers/registries.conf.d/localhost.conf:ro" \
+      --entrypoint /usr/bin/image-builder \
+      -v "{{justfile_directory()}}/disk_config:/config:ro" \
+      -v "{{justfile_directory()}}/output:/output" \
+      -v "{{registry_conf}}:/etc/containers/registries.conf:ro" \
+      "{{bib_image}}" \
+      build \
+      --blueprint /config/disk.toml \
+      --output-dir /output \
+      --bootc-ref "{{registry_ref}}" \
+      --bootc-pull-container \
+      qcow2
+    @echo "→ output/*.qcow2"
+
+# Stadio B: ISO via registry locale (nuovo CLI image-builder)
+iso: registry-up push-local
+    mkdir -p output
+    sudo podman run --rm --privileged --pull=always \
+      --network host \
+      --cgroupns=host \
+      -v /run \
+      -v /var \
+      --security-opt label=disable \
+      --entrypoint /usr/bin/image-builder \
+      -v "{{justfile_directory()}}/disk_config:/config:ro" \
+      -v "{{justfile_directory()}}/output:/output" \
+      -v "{{registry_conf}}:/etc/containers/registries.conf:ro" \
+      "{{bib_image}}" \
+      build \
+      --blueprint /config/iso.toml \
+      --output-dir /output \
+      --bootc-ref "{{registry_ref}}" \
+      --bootc-pull-container \
+      bootc-installer
+    @echo "→ output/*.iso"
+
+# Stadio B offline: copia rootful + image-builder sul ref locale
+disk-image-offline: ensure-rootful
+    mkdir -p output
+    sudo podman run --rm --privileged --pull=always \
+      --network host \
+      --cgroupns=host \
+      -v /run \
+      -v /var \
+      --security-opt label=disable \
+      --entrypoint /usr/bin/image-builder \
       -v "{{justfile_directory()}}/disk_config:/config:ro" \
       -v "{{justfile_directory()}}/output:/output" \
       "{{bib_image}}" \
-      --type qcow2 --config /config/disk.toml "{{registry_ref}}"
-    sudo chown -R "$(id -u):$(id -g)" output || true
-    echo "→ output/qcow2/disk.qcow2"
+      build \
+      --blueprint /config/disk.toml \
+      --output-dir /output \
+      --bootc-ref "{{local_image}}" \
+      qcow2
+    @echo "→ output/*.qcow2"
 
-# Stadio B: ISO installer (USB / hardware)
-iso: registry-up
-    #!/usr/bin/env bash
-    set -euo pipefail
-    exec 9>"{{lock_file}}"
-    if ! flock -w "${LOCK_WAIT:-0}" 9; then
-      echo "ERRORE: un'altra operazione PA è in corso (lock {{lock_file}})." >&2
-      exit 1
-    fi
-    podman image inspect "{{local_image}}" >/dev/null 2>&1 || { echo "manca {{local_image}}: esegui 'just build'" >&2; exit 1; }
-    podman tag "{{local_image}}" "{{registry_ref}}"
-    podman push --tls-verify=false "{{registry_ref}}"
+iso-offline: ensure-rootful
     mkdir -p output
-    # bib richiede (1) podman rootful (validazione interna, come l'azione CI che
-    # fa "sudo podman pull") e (2) lo storage rootful montato nel container.
-    sudo podman pull --tls-verify=false "{{registry_ref}}"
     sudo podman run --rm --privileged --pull=always \
       --network host \
+      --cgroupns=host \
+      -v /run \
+      -v /var \
       --security-opt label=disable \
-      -v /var/lib/containers/storage:/var/lib/containers/storage \
-      -v "{{justfile_directory()}}/registry-localhost.conf:/etc/containers/registries.conf.d/localhost.conf:ro" \
+      --entrypoint /usr/bin/image-builder \
       -v "{{justfile_directory()}}/disk_config:/config:ro" \
       -v "{{justfile_directory()}}/output:/output" \
       "{{bib_image}}" \
-      --type anaconda-iso --config /config/iso.toml "{{registry_ref}}"
-    sudo chown -R "$(id -u):$(id -g)" output || true
-    echo "→ output/iso/*.iso"
+      build \
+      --blueprint /config/iso.toml \
+      --output-dir /output \
+      --bootc-ref "{{local_image}}" \
+      bootc-installer
+    @echo "→ output/*.iso"
 
-# Pulizia (immagine locale + output)
-clean:
+# Recupera spazio: registry, cache build, immagini non usate, output
+prune:
     #!/usr/bin/env bash
-    set -euo pipefail
-    exec 9>"{{lock_file}}"
-    if ! flock -w "${LOCK_WAIT:-0}" 9; then
-      echo "ERRORE: un'altra operazione PA è in corso (lock {{lock_file}})." >&2
-      exit 1
-    fi
+    set -uo pipefail
+    echo "Prima:"; podman system df || true
+    podman rm -f "{{registry_container}}" >/dev/null 2>&1 || true
+    podman system prune -a --volumes -f || true
+    buildah prune -a -f || true
+    sudo podman system prune -a --volumes -f || true
     rm -rf output
-    podman rmi "{{local_image}}" >/dev/null 2>&1 || true
-    podman rmi "{{registry_ref}}" >/dev/null 2>&1 || true
+    echo; echo "Dopo:"; podman system df || true
+
+# Pulizia immagine locale + registry (+ volume) + output + rootful
+clean: clean-registry clean-output clean-rootful
+
+# Rimuove solo l'output (qcow2/ISO)
+clean-output:
+    rm -rf output
+    @echo "output/ rimosso"
+
+# Rimuove la copia rootful (immagine + dangling)
+clean-rootful:
+    -sudo podman rmi "{{local_image}}"
+    -sudo podman image prune -f
+    @echo "rootful: immagine/dangling rimossi"
+
+# Ferma il registry e rimuove container + volume (perde l'immagine pushata)
+clean-registry:
+    -podman rm -f -v {{registry_container}}
+    @echo "registry: container e volume rimossi"
+
+# Rimuove layer/immagini dangling (rootless + rootful + cache buildah)
+clean-dangling:
+    podman image prune -f
+    buildah prune -a -f
+    sudo podman image prune -f
+    @echo "dangling: puliti"
+
+# Elenca i volumi rootful non registrati (orfani)
+orphan-volumes:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "Volume rootful non registrati:"
+    comm -23 \
+      <(ls -1 /var/lib/containers/storage/volumes 2>/dev/null | sort) \
+      <(sudo podman volume ls -q 2>/dev/null | sort) || true
+    echo
+    echo "Rimuovi con: CONFIRM=1 just clean-orphan-volumes"
+
+# Rimuove i volumi rootful orfani (richiede CONFIRM=1)
+clean-orphan-volumes:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [ "${CONFIRM:-}" != "1" ]; then
+      echo "Imposta CONFIRM=1 per rimuovere i volumi orfani."
+      echo "Prima controlla con: just orphan-volumes"
+      exit 1
+    fi
+    mapfile -t vols < <(
+      comm -23 \
+        <(ls -1 /var/lib/containers/storage/volumes 2>/dev/null | sort) \
+        <(sudo podman volume ls -q 2>/dev/null | sort)
+    )
+    if [ "${#vols[@]}" -eq 0 ]; then
+      echo "Nessun volume orfano."
+      exit 0
+    fi
+    for v in "${vols[@]}"; do
+      echo "→ rimuovo $v"
+      sudo rm -rf "/var/lib/containers/storage/volumes/$v"
+    done
+    echo "Fatto."
+
+# Pulizia totale (aggressiva): registry, cache, immagini, rootful, output
+clean-all:
+    #!/usr/bin/env bash
+    set -uo pipefail
+    podman rm -f -v "{{registry_container}}" >/dev/null 2>&1 || true
+    podman system prune -a --volumes -f || true
+    buildah prune -a -f || true
+    sudo podman system prune -a --volumes -f || true
+    rm -rf output
+    echo "Pulizia completa."
+
+# Riepilogo spazio
+space:
+    #!/usr/bin/env bash
+    set -uo pipefail
+    echo "== btrfs =="; df -h . | tail -1
+    btrfs filesystem usage -T / 2>/dev/null | grep -E "Device allocated|Used:|Free \(estimated\)|Free \(statfs" || true
+    echo; echo "== rootless =="; podman system df || true
+    echo; echo "== rootful =="; sudo podman system df || true
+    echo; echo "== directory =="
+    du -sh "$HOME/.local/share/containers" 2>/dev/null || true
+    sudo du -sh /var/lib/containers/storage 2>/dev/null || true
+    du -sh output 2>/dev/null || true
+    echo; echo "== qcow2 =="; du -sh output/*.qcow2 2>/dev/null || true

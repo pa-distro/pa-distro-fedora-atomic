@@ -128,7 +128,18 @@ EOF
 fi
 
 # ---------------------------------------------------------------------------
-# 6. Nuovi utenti creati da CLI: shell zsh
+# 6. Timezone di default dell'immagine
+#    (il nuovo image-builder non accetta customizations.timezone per qcow2)
+# ---------------------------------------------------------------------------
+say "05-theme: timezone"
+if [ -f /usr/share/zoneinfo/Europe/Rome ]; then
+    ln -sf /usr/share/zoneinfo/Europe/Rome /etc/localtime
+else
+    echo "ATTENZIONE: /usr/share/zoneinfo/Europe/Rome assente" >&2
+fi
+
+# ---------------------------------------------------------------------------
+# 7. Nuovi utenti creati da CLI: shell zsh
 # ---------------------------------------------------------------------------
 say "05-theme: /etc/default/useradd"
 if [ -f /etc/default/useradd ]; then

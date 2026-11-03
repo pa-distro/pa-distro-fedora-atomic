@@ -84,8 +84,8 @@ just lint           # bootc container lint
 just secureboot     # best effort
 
 # Stadio B (registry locale automatico: 127.0.0.1:5005)
-just disk-image     # output/qcow2/disk.qcow2  -> QEMU
-just iso            # output/iso/*.iso         -> USB/hardware
+just disk-image     # output/*.qcow2  -> QEMU
+just iso            # output/*.iso    -> USB/hardware
 just registry-down  # spegne/rimuove il registry locale
 
 # Registry remoto
@@ -103,6 +103,23 @@ REGISTRY=ghcr.io/TUO-UTENTE just push
 > in test: immagini non firmate → SB disattivato o enroll delle chiavi.
 
 ---
+
+## Pulizia
+
+| Comando | Cosa rimuove | Spazio tipico |
+|---|---|---|
+| `just clean-output` | `output/` (qcow2/ISO) | ~4,6 GB |
+| `just clean-registry` | container + volume del registry | ~3,8 GB |
+| `just clean-dangling` | layer/immagini dangling + cache buildah | ~1–3 GB |
+| `just clean-rootful` | immagine rootful + dangling | ~1–3 GB |
+| `just orphan-volumes` | **elenca** i volumi rootful orfani | — |
+| `CONFIRM=1 just clean-orphan-volumes` | rimuove i volumi orfani | variabile |
+| `just clean` | registry + output + rootful | ~8–10 GB |
+| `just clean-all` | tutto (immagini incluse) | ~20+ GB |
+| `just space` | riepilogo spazio (btrfs, podman, output) | — |
+
+> [!WARNING]
+> `just clean-all` e `just prune` sono **aggressivi**: rimuovono anche l'immagine finale e la base. Usali solo per ripartire da zero.
 
 ## Podman, btrfs e lock
 
@@ -195,8 +212,8 @@ Dove vivono i default:
 ## Note
 
 - Base: `quay.io/fedora-ostree-desktops/kinoite:44`, solo `x86_64` (Plasma 6.7.5).
-- Build con **podman** e registry locale per `bootc-image-builder`; niente Docker/buildx, i `RUN --mount` del Containerfile sono gestiti nativamente da buildah.
-- Lock di build in `.build.lock` (`flock`), condiviso da `build`, `disk-image`, `iso`, `clean`.
+- Build con **podman** (rootless per il ciclo veloce); qcow2/ISO con **build rootful** + `bootc-image-builder --local`. Niente Docker/buildx: i `RUN --mount` del Containerfile sono gestiti da buildah.
+- Lock di build in `.build.lock` (`flock`), condiviso da `build`, `build-rootful`, `disk-image`, `iso`, `clean`.
 - Login manager: **Plasma Login Manager** (`plasmalogin`), non SDDM; il wallpaper PA è impostato in `/etc/plasmalogin.conf`.
 - Pacchetti aggiunti per il tema/terminale: `zsh`, `fastfetch`, `btop`, `source-foundry-hack-fonts`, `gtk-update-icon-cache`.
 - Tema, icone e wallpaper aggiungono ~100 MB all'immagine (le icone sono SVG).
@@ -205,14 +222,7 @@ Dove vivono i default:
 - `cosign.pub.example` è un segnaposto: genera la coppia con `cosign generate-key-pair`.
 - Le immagini buildate con Docker nel periodo "docker" restano nello storage di
   Docker (~9 GB): `docker rmi pa-desktop-aurora:latest` per liberare spazio.
-- **Stadio B bib**: la ricetta lancia `bootc-image-builder` con `sudo podman run`
-  (rootful, perché la validazione interna di bib lo richiede) e montando
-  `/var/lib/containers/storage` nel container: bib non vede lo storage di
-  podman rootless e ha bisogno del pull rootful dell'immagine
-  (`sudo podman pull --tls-verify=false`) prima dell'avvio — lo fa da sé la
-  action CI (`bootc-image-builder-action`). Il pull locale del registry passa
-  da `registry-localhost.conf` (marca `localhost:5005` insicuro). L'output
-  nasce root: la ricetta fa `sudo chown` su `output/`.
+- **Stadio B bib**: `just disk-image`/`iso` pubblicano l'immagine **rootless** sul registry locale (`pa-registry`, `127.0.0.1:5005`) usando `registry-localhost.conf`, poi lanciano bib **rootful** che la pulla (la config è montata come drop-in in `/etc/containers/registries.conf.d/`). Alternativa senza registry: `just disk-image-offline`/`iso-offline` (copia rootful con `podman save | sudo podman load`). In entrambi i casi l'immagine esiste due volte (~8,8 GB per copia): dopo l'uso, `just clean-rootful` o `just prune`. Se la CPU è **x86-64-v2**, `bib:latest` può fallire (richiede v3): imposta `BIB_IMAGE` al digest indicato sotto.
 - **CPU x86-64-v2 (pre-Haswell, es. i5-3340M)**: `bootc-image-builder:latest`
   (dal commit "install image-builder from CS10 RPM", 2026-10-01) richiede
   x86-64-v3 e va in `Fatal glibc error: CPU does not support x86-64-v3`.

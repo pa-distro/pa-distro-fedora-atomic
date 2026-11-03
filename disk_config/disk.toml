@@ -1,10 +1,8 @@
 # disk.toml — qcow2 (QEMU/KVM)
-[customizations.timezone]
-timezone = "Europe/Rome"
-
-[customizations.locale]
-languages = ["it_IT.UTF-8"]
-keyboard = "it"
+# Nota: il nuovo image-builder non supporta customizations.timezone/locale per
+# qcow2. Locale e tastiera sono già nell'immagine (etc/locale.conf,
+# etc/vconsole.conf); il timezone è impostato da build_scripts/base/05-theme.sh
+# (symlink /etc/localtime -> Europe/Rome).
 
 [[customizations.user]]
 name = "pa"

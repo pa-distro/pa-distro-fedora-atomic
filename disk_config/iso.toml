@@ -1,10 +1,8 @@
-# iso.toml — ISO installer (Anaconda)
-[customizations.timezone]
-timezone = "Europe/Rome"
-
-[customizations.locale]
-languages = ["it_IT.UTF-8"]
-keyboard = "it"
+# iso.toml — ISO installer (bootc-installer / Anaconda)
+# Nota: il nuovo image-builder non supporta customizations.timezone/locale per
+# bootc-installer. Locale e tastiera sono già nell'immagine (etc/locale.conf,
+# etc/vconsole.conf); il timezone è impostato da build_scripts/base/05-theme.sh
+# (symlink /etc/localtime -> Europe/Rome).
 
 # Con un kickstart personalizzato, bootc-image-builder non accetta
 # [[customizations.user]]: l'utente va definito nel kickstart.

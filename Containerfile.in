@@ -42,8 +42,8 @@ RUN --network=none \
     --mount=type=bind,from=ctx,source=/build_scripts,target=/ctx/build_scripts \
     --mount=type=bind,from=ctx,source=/system_files,target=/ctx/system_files \
     /ctx/build_scripts/base/03-files.sh && \
-    /ctx/build_scripts/base/04-services.sh && \
     /ctx/build_scripts/base/05-theme.sh && \
+    /ctx/build_scripts/base/04-services.sh && \
     /ctx/build_scripts/shared/clean-stage.sh && \
     /ctx/build_scripts/base/99-finalize.sh
 

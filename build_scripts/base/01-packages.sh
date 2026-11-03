@@ -44,7 +44,12 @@ dnf install -y --setopt=install_weak_deps=False \
   gtk-update-icon-cache
 
 # --- Rimozioni non critiche (best effort, non fallisce se assenti) ---
-dnf -y remove abrt abrt-desktop rsyslog || true
+# initial-setup / plasma-setup: su immutabile la configurazione è già nell'immagine,
+# quindi il wizard di primo avvio non serve (ispirato a Parrot: meno servizi, meno attrito).
+dnf -y remove \
+  abrt abrt-desktop rsyslog \
+  initial-setup plasma-setup \
+  || true
 
 # --- AD/LDAP (opzionale: decommenta se serve il join al dominio) ---
 # dnf install -y \
